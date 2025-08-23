@@ -1,0 +1,8 @@
+Asset,Ticker,Quantity,Category,Avg Buy Price
+Apple, AAPL,10,Taxable equity,150
+VTI, VTI,2000,401K,80
+BTC, BTC,0.5,Crypto,30000
+ETH, ETH,2,Crypto,2000
+GOOGL, GOOGL,5,IRA,120
+CASH, CASH,10000,Savings,1
+SWIGGY.NS, SWIGGY.NS,100,Taxable equity,330

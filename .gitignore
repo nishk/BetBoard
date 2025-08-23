@@ -1,0 +1,25 @@
+# Python virtual environment
+.venv/
+__pycache__/
+*.pyc
+venv/
+
+# Streamlit and matplotlib cache
+.cache/
+
+# Results and generated images
+# results/
+
+# Personal data and CSVs
+personal/
+
+# OS and editor files
+.DS_Store
+*.swp
+*.swo
+
+# Jupyter and notebook checkpoints
+.ipynb_checkpoints/
+
+# VS Code settings
+.vscode/
