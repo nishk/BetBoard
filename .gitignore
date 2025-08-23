@@ -8,7 +8,7 @@ venv/
 .cache/
 
 # Results and generated images
-# results/
+results/
 
 # Personal data and CSVs
 personal/
