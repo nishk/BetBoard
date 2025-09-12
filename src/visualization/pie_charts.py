@@ -60,7 +60,7 @@ def ensure_lora_font():
 
 
 
-def plot_pie(data: Dict[str, float], title: str, ax=None, combine_threshold: float = 0.02, direction: str = 'clockwise') -> Tuple[plt.Figure, plt.Axes]:
+def plot_pie(data: Dict[str, float], title: str, ax=None, combine_threshold: float = 0.02, direction: str = 'clockwise', legend_anchor: float = 1.0) -> Tuple[plt.Figure, plt.Axes]:
     """
     Plot a pie chart with strategies to reduce label overlap.
 
@@ -149,8 +149,14 @@ def plot_pie(data: Dict[str, float], title: str, ax=None, combine_threshold: flo
         textprops=textprops,
     )
 
-    # Use an external legend for labels to avoid overlap on the pie
-    leg = ax.legend(wedges, labels, title=title, loc='center left', bbox_to_anchor=(1, 0, 0.5, 1))
+    # Use an external legend for labels to avoid overlap on the pie.
+    # `legend_anchor` is an x coordinate passed to bbox_to_anchor which lets
+    # callers nudge the legend left/right when multiple subplots are shown.
+    try:
+        leg = ax.legend(wedges, labels, title=title, loc='center left', bbox_to_anchor=(legend_anchor, 0.5))
+    except Exception:
+        # fallback to previous bounding box shape if 2-tuple not accepted
+        leg = ax.legend(wedges, labels, title=title, loc='center left', bbox_to_anchor=(1, 0, 0.5, 1))
     if lora_ok:
         try:
             leg.set_title(title)
@@ -169,12 +175,34 @@ def generate_pie_charts(asset_values: Dict[str, float], category_distribution: D
     This function shows the charts; for testing you can call `plot_pie`.
     """
     fig, axes = plt.subplots(1, 2, figsize=(12, 6))
+    # Give subplots extra horizontal room to place external legends without overlap
+    fig.subplots_adjust(wspace=0.6)
     # If detailed is True, do not combine small asset slices (show all individually)
+    # For side-by-side pies we nudge the left legend to the left and the right
+    # legend to the right so their label boxes don't collide when the
+    # combine_threshold is very small. The `legend_anchor` is the x position
+    # for bbox_to_anchor; values < 0 move the legend left of the axes, values
+    # > 1 move it right of the axes.
     if detailed:
-        plot_pie(asset_values, "Asset Distribution", ax=axes[0], combine_threshold=0)
+        plot_pie(asset_values, "Asset Distribution", ax=axes[0], combine_threshold=0, legend_anchor=-0.05)
     else:
-        plot_pie(asset_values, "Asset Distribution", ax=axes[0])
-    plot_pie(category_distribution, "Category Distribution", ax=axes[1])
+        plot_pie(asset_values, "Asset Distribution", ax=axes[0], legend_anchor=-0.05)
+    plot_pie(category_distribution, "Category Distribution", ax=axes[1], legend_anchor=1.05)
+
+    # After drawing, slightly shift the two axes further apart to avoid any
+    # remaining label/legend overlap between the subplots. We compute a small
+    # delta based on current positions so this works with different figure sizes.
+    try:
+        left_pos = axes[0].get_position().bounds  # (left, bottom, width, height)
+        right_pos = axes[1].get_position().bounds
+        delta = 0.03
+        axes[0].set_position([max(0, left_pos[0] - delta), left_pos[1], left_pos[2], left_pos[3]])
+        axes[1].set_position([min(1 - right_pos[2], right_pos[0] + delta), right_pos[1], right_pos[2], right_pos[3]])
+    except Exception:
+        # if anything goes wrong, ignore and continue — the earlier subplots_adjust
+        # already improves spacing in the common case.
+        pass
+
     plt.tight_layout()
     # Only call plt.show() when using an interactive backend. For headless/backends like 'Agg'
     # save the figure to a PNG so users running on servers still get the output.
