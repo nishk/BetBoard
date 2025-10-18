@@ -55,12 +55,24 @@ if csv_path:
         if mode.startswith('Simple'):
             # Peek at CSV headers to ensure 'Amount' exists; if not, fallback to live
             try:
+                # If csv_path is a Streamlit uploaded file (file-like), ensure pointer is at 0
+                if not isinstance(csv_path, str):
+                    try:
+                        csv_path.seek(0)
+                    except Exception:
+                        pass
                 peek_cols = {c.strip().lower() for c in pd.read_csv(csv_path, nrows=0).columns}
             except Exception:
                 peek_cols = set()
 
             if 'amount' not in peek_cols:
                 # Try to synthesize Amount from Quantity * Avg Buy Price without performing live price fetches
+                # If csv_path is a file-like uploaded object, reset pointer first
+                if not isinstance(csv_path, str):
+                    try:
+                        csv_path.seek(0)
+                    except Exception:
+                        pass
                 df_peek = pd.read_csv(csv_path)
                 # normalize column lookup by lowercasing stripped names
                 col_map = {c.strip().lower(): c for c in df_peek.columns}
@@ -96,11 +108,23 @@ if csv_path:
                 else:
                     raise ValueError("Simple mode expects an 'Amount' column or Quantity+Avg Buy Price columns to compute amounts; no fallback to live mode.")
             else:
+                # Ensure file pointer reset for loader if necessary
+                if not isinstance(csv_path, str):
+                    try:
+                        csv_path.seek(0)
+                    except Exception:
+                        pass
                 rows = load_simple_csv(csv_path)
                 result = calculate_from_values(rows)
                 asset_values = result['asset_values']
                 category_distribution = result['category_distribution']
         else:
+            # Reset file pointer for loader if necessary
+            if not isinstance(csv_path, str):
+                try:
+                    csv_path.seek(0)
+                except Exception:
+                    pass
             data = load_csv_data(csv_path)
             # default: live fetcher uses get_current_price which will hit network
             asset_values = calculate_asset_values(data, price_fetcher=get_current_price)
