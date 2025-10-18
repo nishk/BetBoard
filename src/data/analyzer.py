@@ -92,6 +92,22 @@ def calculate_category_distribution(data: List[dict], price_fetcher: Callable[[s
     return category_distribution
 
 
+def calculate_bucket_distribution(data: List[dict], price_fetcher: Callable[[str, str], float] = get_current_price) -> Dict[str, float]:
+    """
+    Aggregate values by Bucket (optional column). If Bucket is missing or empty,
+    group under 'Unbucketed'.
+    """
+    bucket_distribution: Dict[str, float] = {}
+    for entry in data:
+        bucket = entry.get('Bucket', '') or 'Unbucketed'
+        asset = entry.get('Asset', '') or ''
+        ticker = entry.get('Ticker', '') or asset
+        quantity = float(entry.get('Quantity', 0) or 0)
+        price = price_fetcher(ticker, asset)
+        bucket_distribution[bucket] = bucket_distribution.get(bucket, 0.0) + quantity * price
+    return bucket_distribution
+
+
 def calculate_from_values(data: List[dict]) -> Dict[str, Dict[str, float]]:
     """
     Given rows with keys 'Asset', 'Category', 'Amount' where 'Amount' is the current value,
@@ -100,11 +116,15 @@ def calculate_from_values(data: List[dict]) -> Dict[str, Dict[str, float]]:
     """
     asset_values: Dict[str, float] = {}
     category_distribution: Dict[str, float] = {}
+    bucket_distribution: Dict[str, float] = {}
     for entry in data:
         asset = entry.get('Asset', '') or ''
         category = entry.get('Category', '') or 'Uncategorized'
         amount = float(entry.get('Amount', 0) or 0)
         asset_values[asset] = asset_values.get(asset, 0.0) + amount
         category_distribution[category] = category_distribution.get(category, 0.0) + amount
+        # Bucket aggregation for simple flow
+        bucket = entry.get('Bucket', '') or 'Unbucketed'
+        bucket_distribution[bucket] = bucket_distribution.get(bucket, 0.0) + amount
 
-    return {'asset_values': asset_values, 'category_distribution': category_distribution}
+    return {'asset_values': asset_values, 'category_distribution': category_distribution, 'bucket_distribution': bucket_distribution}

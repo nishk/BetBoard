@@ -59,7 +59,7 @@ if csv_path:
             asset_values = calculate_asset_values(data, price_fetcher=get_current_price)
             category_distribution = calculate_category_distribution(data, price_fetcher=get_current_price)
 
-        # Show distributions in tables (with headers) and format numbers to 1 decimal place
+    # Show distributions in tables (with headers) and format numbers to 1 decimal place
         # Use HTML output to reliably hide the index column and center-align text
         assets_df = pd.DataFrame(sorted(asset_values.items(), key=lambda x: x[1], reverse=True), columns=['Asset', 'Value'])
         assets_html = (
@@ -73,14 +73,39 @@ if csv_path:
             + cats_df.to_html(index=False, float_format='%.1f')
         )
 
-        # Render the two tables side-by-side so they align with the plots below
-        col1, col2 = st.columns(2)
+        # Bucket distribution (may be empty)
+        bucket_distribution = {}
+        # If simple mode, the result from calculate_from_values includes bucket_distribution
+        if mode.startswith('Simple'):
+            try:
+                bucket_distribution = result.get('bucket_distribution', {})
+            except Exception:
+                bucket_distribution = {}
+        else:
+            # When using live flow, compute bucket distribution from live prices
+            try:
+                from data.analyzer import calculate_bucket_distribution
+                bucket_distribution = calculate_bucket_distribution(data, price_fetcher=get_current_price)
+            except Exception:
+                bucket_distribution = {}
+
+        buckets_df = pd.DataFrame(sorted(bucket_distribution.items(), key=lambda x: x[1], reverse=True), columns=['Bucket', 'Value']) if bucket_distribution else pd.DataFrame(columns=['Bucket', 'Value'])
+        buckets_html = (
+            "<style>table.dataframe td, table.dataframe th { text-align: center; }</style>"
+            + buckets_df.to_html(index=False, float_format='%.1f')
+        )
+
+        # Render the three tables side-by-side so they align with the plots below
+        col1, col2, col3 = st.columns([1, 1, 1])
         with col1:
             st.subheader('Asset Distribution')
             st.markdown(assets_html, unsafe_allow_html=True)
         with col2:
             st.subheader('Category Distribution')
             st.markdown(cats_html, unsafe_allow_html=True)
+        with col3:
+            st.subheader('Bucket Distribution')
+            st.markdown(buckets_html, unsafe_allow_html=True)
 
         # Prepare and render Plotly pies directly for better Streamlit UX
         import plotly.graph_objects as go
@@ -140,16 +165,70 @@ if csv_path:
         a_labels, a_values = prepare_pie_data(asset_values, asset_threshold)
         c_labels, c_values = prepare_pie_data(category_distribution, combine_threshold)
 
-        fig = make_subplots(rows=1, cols=2, specs=[[{'type': 'domain'}, {'type': 'domain'}]],
-                            subplot_titles=['Assets', 'Categories'])
+        # Create subplots: include bucket pie if we have bucket data
+        # We will render the main three pies on the first row, and two bucket-specific
+        # asset-breakdown pies on the second row (Long-Term & Speculative) centered.
+        # Prepare per-bucket asset breakdowns so we can show asset-level pies for each bucket.
+        bucket_asset_breakdowns = {}
+        try:
+            # pick source rows depending on mode
+            source_rows = rows if mode.startswith('Simple') else data
+            for entry in source_rows:
+                b = (entry.get('Bucket') or 'Unbucketed') if isinstance(entry, dict) else 'Unbucketed'
+                asset = (entry.get('Asset') or '') if isinstance(entry, dict) else ''
+                if mode.startswith('Simple'):
+                    value = float(entry.get('Amount') or 0)
+                else:
+                    qty = float(entry.get('Quantity') or 0)
+                    ticker = entry.get('Ticker') or asset
+                    # use the same price fetcher used earlier
+                    price = get_current_price(ticker, asset)
+                    value = qty * price
+                bucket_asset_breakdowns.setdefault(b, {})
+                bucket_asset_breakdowns[b][asset] = bucket_asset_breakdowns[b].get(asset, 0.0) + value
+        except Exception:
+            bucket_asset_breakdowns = {}
+
+        # Create a 2-row, 3-column subplot grid. Row1: Assets/Categories/Buckets. Row2: [empty, Long-Term, Speculative]
+        # Use row_heights to give more vertical space to each row and increase overall figure height
+        fig = make_subplots(rows=2, cols=3,
+                            specs=[[{'type': 'domain'}, {'type': 'domain'}, {'type': 'domain'}],
+                                   [{'type': 'domain'}, {'type': 'domain'}, {'type': 'domain'}]],
+                            row_heights=[0.55, 0.45],
+                            vertical_spacing=0.08,
+                            subplot_titles=['Assets', 'Categories', 'Buckets', '', 'Long-Term', 'Speculative'])
+
+        # Top row
         fig.add_trace(go.Pie(labels=a_labels, values=a_values, name='Assets'), 1, 1)
         fig.add_trace(go.Pie(labels=c_labels, values=c_values, name='Categories'), 1, 2)
+        b_labels, b_values = prepare_pie_data(bucket_distribution, combine_threshold)
+        fig.add_trace(go.Pie(labels=b_labels, values=b_values, name='Buckets'), 1, 3)
+
+        # Bottom row: target the two buckets the user requested. Place them in cols 2 and 3 to center visually.
+        target_buckets = ['Long-Term', 'Speculative']
+        for idx, bname in enumerate(target_buckets):
+            col = 2 + idx  # places in column 2 and 3
+            items = bucket_asset_breakdowns.get(bname, {}) if bucket_asset_breakdowns else {}
+            blabels, bvalues = prepare_pie_data(items, combine_threshold)
+            if blabels and sum(bvalues) > 0:
+                fig.add_trace(go.Pie(labels=blabels, values=bvalues, name=bname), 2, col)
+            else:
+                # add a small placeholder so the subplot exists; we'll annotate "No data" below
+                fig.add_trace(go.Pie(labels=['No data'], values=[1], name=bname, marker={'colors': ['#dddddd']}), 2, col)
+                # add an annotation to make it clear there's no real data
+                fig.add_annotation(text=f'No data for {bname}', xref='paper', yref='paper',
+                                   x=((col - 1) + 0.5) / 3.0, y=0.08, showarrow=False, font=dict(color='#666666'))
 
         # show label + percent with one decimal, and hover shows value with one decimal
         fig.update_traces(textinfo='none',
                           texttemplate='%{label}<br>%{percent:.1%}',
                           hovertemplate='%{label}<br>%{value:,.1f} (%{percent:.1%})')
-        fig.update_layout(margin=dict(t=50, b=0, l=0, r=0))
+
+        # Increase overall figure height so pies render larger. Streamlit will allow scrolling.
+        fig.update_layout(height=900, margin=dict(t=80, b=40, l=20, r=20))
+
+        # Ensure legend/font sizes are comfortable
+        fig.update_layout(legend=dict(font=dict(size=11)))
 
         st.plotly_chart(fig, use_container_width=True)
     except Exception as e:

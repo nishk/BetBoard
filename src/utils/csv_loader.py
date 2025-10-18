@@ -13,6 +13,10 @@ def load_csv_data(file_path):
     if 'Avg Buy Price' in df.columns:
         df['Avg Buy Price'] = pd.to_numeric(df['Avg Buy Price'], errors='coerce').fillna(0)
 
+    # Preserve optional Bucket column if present
+    if 'Bucket' in df.columns:
+        df['Bucket'] = df['Bucket'].astype(str).str.strip().replace({'': None})
+
     # Convert the DataFrame to a list of dictionaries
     data = df.to_dict(orient='records')
 
@@ -30,7 +34,7 @@ def load_simple_csv(file_path):
     df = pd.read_csv(file_path)
     df.columns = [c.strip() for c in df.columns]
 
-    # Expect exact columns; if not present, raise a helpful error
+    # Expect required columns; optional 'Bucket' allowed
     expected = {'asset', 'category', 'amount'}
     found = {c.strip().lower() for c in df.columns}
     if not expected.issubset(found):
@@ -52,5 +56,14 @@ def load_simple_csv(file_path):
     # Strip commas (e.g., 1,000) from Amount and coerce to numeric
     df['Amount'] = df['Amount'].astype(str).str.replace(',', '')
     df['Amount'] = pd.to_numeric(df['Amount'], errors='coerce').fillna(0)
+
+    # Normalize optional Bucket column
+    if 'Bucket' in df.columns or 'bucket' in found:
+        # map case-insensitive name to actual column if needed
+        for c in df.columns:
+            if c.strip().lower() == 'bucket':
+                df = df.rename(columns={c: 'Bucket'})
+                break
+        df['Bucket'] = df['Bucket'].astype(str).str.strip().replace({'': None})
 
     return df.to_dict(orient='records')

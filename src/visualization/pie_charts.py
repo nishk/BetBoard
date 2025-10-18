@@ -169,38 +169,49 @@ def plot_pie(data: Dict[str, float], title: str, ax=None, combine_threshold: flo
     return fig, ax
 
 
-def generate_pie_charts(asset_values: Dict[str, float], category_distribution: Dict[str, float], detailed: bool = False):
+def generate_pie_charts(asset_values: Dict[str, float], category_distribution: Dict[str, float], bucket_distribution: Dict[str, float] = None, detailed: bool = False):
     """
-    Create side-by-side pie charts for assets and categories.
+    Create side-by-side pie charts for assets, categories, and buckets.
+    If `bucket_distribution` is None, the Buckets pie is omitted.
     This function shows the charts; for testing you can call `plot_pie`.
     """
-    fig, axes = plt.subplots(1, 2, figsize=(12, 6))
-    # Give subplots extra horizontal room to place external legends without overlap
-    fig.subplots_adjust(wspace=0.6)
+    # Choose layout depending on whether bucket distribution is provided
+    if bucket_distribution:
+        fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+        fig.subplots_adjust(wspace=0.6)
+    else:
+        fig, axes = plt.subplots(1, 2, figsize=(12, 6))
+        fig.subplots_adjust(wspace=0.6)
+
     # If detailed is True, do not combine small asset slices (show all individually)
-    # For side-by-side pies we nudge the left legend to the left and the right
-    # legend to the right so their label boxes don't collide when the
-    # combine_threshold is very small. The `legend_anchor` is the x position
-    # for bbox_to_anchor; values < 0 move the legend left of the axes, values
-    # > 1 move it right of the axes.
     if detailed:
         plot_pie(asset_values, "Asset Distribution", ax=axes[0], combine_threshold=0, legend_anchor=-0.05)
     else:
         plot_pie(asset_values, "Asset Distribution", ax=axes[0], legend_anchor=-0.05)
-    plot_pie(category_distribution, "Category Distribution", ax=axes[1], legend_anchor=1.05)
 
-    # After drawing, slightly shift the two axes further apart to avoid any
-    # remaining label/legend overlap between the subplots. We compute a small
-    # delta based on current positions so this works with different figure sizes.
+    # When buckets are present, axes[1] is categories; otherwise axes[1] is categories too
+    if bucket_distribution:
+        plot_pie(category_distribution, "Category Distribution", ax=axes[1], legend_anchor=1.05)
+        plot_pie(bucket_distribution, "Bucket Distribution", ax=axes[2], legend_anchor=1.8)
+    else:
+        plot_pie(category_distribution, "Category Distribution", ax=axes[1], legend_anchor=1.05)
+
+    # After drawing, slightly shift the axes to avoid label/legend overlap.
     try:
-        left_pos = axes[0].get_position().bounds  # (left, bottom, width, height)
-        right_pos = axes[1].get_position().bounds
-        delta = 0.03
-        axes[0].set_position([max(0, left_pos[0] - delta), left_pos[1], left_pos[2], left_pos[3]])
-        axes[1].set_position([min(1 - right_pos[2], right_pos[0] + delta), right_pos[1], right_pos[2], right_pos[3]])
+        if bucket_distribution:
+            left_pos = axes[0].get_position().bounds
+            mid_pos = axes[1].get_position().bounds
+            right_pos = axes[2].get_position().bounds
+            delta = 0.03
+            axes[0].set_position([max(0, left_pos[0] - delta), left_pos[1], left_pos[2], left_pos[3]])
+            axes[2].set_position([min(1 - right_pos[2], right_pos[0] + delta), right_pos[1], right_pos[2], right_pos[3]])
+        else:
+            left_pos = axes[0].get_position().bounds
+            right_pos = axes[1].get_position().bounds
+            delta = 0.03
+            axes[0].set_position([max(0, left_pos[0] - delta), left_pos[1], left_pos[2], left_pos[3]])
+            axes[1].set_position([min(1 - right_pos[2], right_pos[0] + delta), right_pos[1], right_pos[2], right_pos[3]])
     except Exception:
-        # if anything goes wrong, ignore and continue — the earlier subplots_adjust
-        # already improves spacing in the common case.
         pass
 
     plt.tight_layout()
