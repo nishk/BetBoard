@@ -47,6 +47,18 @@ python src/main.py <path_to_csv_file>
 ```
 Replace `<path_to_csv_file>` with the path to your CSV file containing asset data.
 
+CLI options (short):
+
+- `--no-show`  : print asset/category distributions to stdout instead of displaying plots
+- `--simple`   : input CSV is the simple format (columns: Asset, Category, Amount[, Bucket])
+- `--detailed` : do not combine small asset slices into an "Other" bucket (show all assets)
+
+Example:
+
+```
+python src/main.py personal/nsh_simple.csv --simple --no-show
+```
+
 ## Input Data Format
 The CSV file should contain the following columns (headers are case-sensitive but whitespace is trimmed):
 - `Asset`: The name or label of the asset (e.g., AAPL, BTC)
@@ -136,6 +148,8 @@ streamlit run app.py
 
 <!-- CLI usage removed: this README documents the Streamlit app. -->
 
+Note: two Streamlit entry scripts exist: `app.py` (recommended canonical entrypoint) and `streamlit_app.py` (alternative UI; points to `personal/nsh_simple.csv` by default). Run the canonical UI from the repo root with `streamlit run app.py`.
+
 ## CSV formats
 
 Two CSV formats are supported:
@@ -144,6 +158,8 @@ Two CSV formats are supported:
 
 - Columns: Asset, Category, Amount
 - Example: `personal/nsh_simple.csv`
+
+Optional column: `Bucket` — when present a Bucket Distribution chart is produced and used to show per-bucket asset breakdowns (e.g., Long-Term, Speculative).
 
 2) Detailed CSV (for live price fetching)
 
@@ -156,10 +172,14 @@ Two CSV formats are supported:
 - If the input CSV already contains a slice named "Other" (case-insensitive), small slices will be merged into that existing label instead of creating a duplicate.
 - The Streamlit UI renders two compact tables (Assets and Categories) side-by-side above the pie charts and uses one decimal place for numeric values.
 
+- The visualizer will attempt to download and register the "Lora" font into `fonts/` for improved typography; this requires network access and silently falls back to system fonts if the download or registration fails.
+
 ## Price fetching and runtime messages
 
 - Live mode uses `yfinance` and `pycoingecko` where appropriate. Network errors or delisted tickers can produce warnings like "possibly delisted"; these are normal for tickers that don't resolve.
 - The code sanitizes input tickers (it strips leading `$` and treats aggregated labels like "Other" as non-tickers) to avoid unnecessary lookup attempts.
+
+Output when running headless: when a non-interactive backend is detected the visualizer saves a high-resolution PNG to `results/Portfolio-YYYY-MM-DD.png` (300 DPI) instead of calling `plt.show()`.
 
 ## Troubleshooting
 
