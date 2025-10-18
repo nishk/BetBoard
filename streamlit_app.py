@@ -48,11 +48,58 @@ combine_threshold = st.sidebar.slider('Combine threshold (%)', 0.0, 10.0, 2.0) /
 if csv_path:
     # st.header('Portfolio')
     try:
+        # Handle Simple vs Live mode. If user selected Simple but their CSV doesn't contain
+        # an 'Amount' column, fall back to Live mode (using Ticker/Quantity) and warn.
+        rows = None
+        data = None
         if mode.startswith('Simple'):
-            rows = load_simple_csv(csv_path)
-            result = calculate_from_values(rows)
-            asset_values = result['asset_values']
-            category_distribution = result['category_distribution']
+            # Peek at CSV headers to ensure 'Amount' exists; if not, fallback to live
+            try:
+                peek_cols = {c.strip().lower() for c in pd.read_csv(csv_path, nrows=0).columns}
+            except Exception:
+                peek_cols = set()
+
+            if 'amount' not in peek_cols:
+                # Try to synthesize Amount from Quantity * Avg Buy Price without performing live price fetches
+                df_peek = pd.read_csv(csv_path)
+                # normalize column lookup by lowercasing stripped names
+                col_map = {c.strip().lower(): c for c in df_peek.columns}
+                if 'quantity' in col_map and ('avg buy price' in col_map or 'avg_buy_price' in col_map or 'avgbuyprice' in col_map):
+                    # find the actual Avg Buy Price column name
+                    abp_key = None
+                    for key in ('avg buy price', 'avg_buy_price', 'avgbuyprice'):
+                        if key in col_map:
+                            abp_key = col_map[key]
+                            break
+                    qty_col = col_map['quantity']
+                    try:
+                        df_peek[qty_col] = pd.to_numeric(df_peek[qty_col].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
+                        df_peek[abp_key] = pd.to_numeric(df_peek[abp_key].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
+                        df_peek['Amount'] = df_peek[qty_col] * df_peek[abp_key]
+                        # Build simple rows expected by calculate_from_values
+                        # Ensure we have Asset and Category columns
+                        if 'asset' in col_map and 'category' in col_map:
+                            asset_col = col_map['asset']
+                            category_col = col_map['category']
+                            simple_df = df_peek[[asset_col, category_col, 'Amount']].rename(columns={asset_col: 'Asset', category_col: 'Category'})
+                            # Preserve optional Bucket column if present
+                            if 'bucket' in col_map:
+                                simple_df['Bucket'] = df_peek[col_map['bucket']].astype(str).str.strip().replace({'': None})
+                            rows = simple_df.to_dict(orient='records')
+                            result = calculate_from_values(rows)
+                            asset_values = result['asset_values']
+                            category_distribution = result['category_distribution']
+                        else:
+                            raise ValueError("Simple mode requires 'Asset' and 'Category' columns when synthesizing Amount from Quantity and Avg Buy Price.")
+                    except Exception as exc:
+                        raise ValueError(f"Failed to synthesize Amount from Quantity and Avg Buy Price: {exc}")
+                else:
+                    raise ValueError("Simple mode expects an 'Amount' column or Quantity+Avg Buy Price columns to compute amounts; no fallback to live mode.")
+            else:
+                rows = load_simple_csv(csv_path)
+                result = calculate_from_values(rows)
+                asset_values = result['asset_values']
+                category_distribution = result['category_distribution']
         else:
             data = load_csv_data(csv_path)
             # default: live fetcher uses get_current_price which will hit network
