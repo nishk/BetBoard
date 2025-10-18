@@ -282,11 +282,12 @@ if csv_path:
         # Create subplots conditionally: include bucket-related charts only when bucket data exists
         if has_bucket_column and bucket_distribution and sum(bucket_distribution.values()) > 0:
             # Full layout: top row (Assets, Categories, Buckets), bottom row (Long-Term, Speculative centered)
+            # reduce vertical_spacing so plots sit closer to the tables above
             fig = make_subplots(rows=2, cols=3,
                                 specs=[[{'type': 'domain'}, {'type': 'domain'}, {'type': 'domain'}],
                                        [{'type': 'domain'}, {'type': 'domain'}, {'type': 'domain'}]],
-                                row_heights=[0.55, 0.45],
-                                vertical_spacing=0.08,
+                                row_heights=[0.60, 0.40],
+                                vertical_spacing=0.04,
                                 subplot_titles=['Assets', 'Categories', 'Buckets', '', 'Long-Term', 'Speculative'])
 
             # Top row
@@ -305,6 +306,7 @@ if csv_path:
                     fig.add_trace(go.Pie(labels=blabels, values=bvalues, name=bname), 2, col)
         else:
             # Simpler layout: only Assets and Categories
+            # Use a tighter layout and smaller height when buckets are absent
             fig = make_subplots(rows=1, cols=2, specs=[[{'type': 'domain'}, {'type': 'domain'}]],
                                 subplot_titles=['Assets', 'Categories'])
             fig.add_trace(go.Pie(labels=a_labels, values=a_values, name='Assets'), 1, 1)
@@ -315,8 +317,14 @@ if csv_path:
                           texttemplate='%{label}<br>%{percent:.1%}',
                           hovertemplate='%{label}<br>%{value:,.1f} (%{percent:.1%})')
 
-        # Increase overall figure height so pies render larger. Streamlit will allow scrolling.
-        fig.update_layout(height=900, margin=dict(t=80, b=40, l=20, r=20))
+        # Choose a more compact figure height and smaller top margin so pies sit closer to the tables
+        if has_bucket_column and bucket_distribution and sum(bucket_distribution.values()) > 0:
+            fig_height = 700
+            top_margin = 40
+        else:
+            fig_height = 520
+            top_margin = 16
+        fig.update_layout(height=fig_height, margin=dict(t=top_margin, b=24, l=16, r=16))
 
         # Ensure legend/font sizes are comfortable
         fig.update_layout(legend=dict(font=dict(size=11)))
