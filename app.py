@@ -64,12 +64,24 @@ if csv_path:
         # Show distributions in tables (with headers) and format numbers to 1 decimal place
         # Use HTML output to reliably hide the index column and center-align text
         assets_df = pd.DataFrame(sorted(asset_values.items(), key=lambda x: x[1], reverse=True), columns=['Asset', 'Value'])
+        # Append Total row summing the Value column
+        try:
+            assets_total = float(assets_df['Value'].sum()) if not assets_df.empty else 0.0
+        except Exception:
+            assets_total = 0.0
+        assets_df = pd.concat([assets_df, pd.DataFrame([{'Asset': 'Total', 'Value': assets_total}])], ignore_index=True)
         assets_html = (
             "<style>table.dataframe td, table.dataframe th { text-align: center; }</style>"
             + assets_df.to_html(index=False, float_format='%.1f')
         )
 
         cats_df = pd.DataFrame(sorted(category_distribution.items(), key=lambda x: x[1], reverse=True), columns=['Category', 'Value'])
+        # Append Total row summing the Value column
+        try:
+            cats_total = float(cats_df['Value'].sum()) if not cats_df.empty else 0.0
+        except Exception:
+            cats_total = 0.0
+        cats_df = pd.concat([cats_df, pd.DataFrame([{'Category': 'Total', 'Value': cats_total}])], ignore_index=True)
         cats_html = (
             "<style>table.dataframe td, table.dataframe th { text-align: center; }</style>"
             + cats_df.to_html(index=False, float_format='%.1f')
