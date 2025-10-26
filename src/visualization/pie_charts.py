@@ -87,6 +87,10 @@ def plot_pie(data: Dict[str, float], title: str, ax=None, combine_threshold: flo
             if existing_other_idx is not None and i == existing_other_idx:
                 large_labels.append(lbl)
                 large.append(val)
+            # Always keep 'Cash' separate regardless of threshold
+            elif str(lbl).strip().lower() == 'cash':
+                large_labels.append(lbl)
+                large.append(val)
             elif val / total < combine_threshold:
                 small_sum += val
             else:

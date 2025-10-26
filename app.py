@@ -110,6 +110,10 @@ if csv_path:
                 big = []
                 small_sum = 0.0
                 for k, v in items:
+                    # Always keep 'Cash' separate regardless of threshold
+                    if str(k).strip().lower() == 'cash':
+                        big.append((k, v))
+                        continue
                     if v / total < combine_threshold:
                         small_sum += v
                     else:
