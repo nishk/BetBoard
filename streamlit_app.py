@@ -43,7 +43,9 @@ if csv_path:
 
 # Options
 detailed = st.sidebar.checkbox('Detailed Asset Chart', value=False)
-combine_threshold = st.sidebar.slider('Combine threshold (%)', 0.0, 10.0, 2.0) / 100.0
+# Show integer percent steps from 0..20 (whole numbers only). Convert to fraction for internal use.
+combine_pct = st.sidebar.slider('Combine threshold (%)', 0, 20, 2, step=1)
+combine_threshold = float(combine_pct) / 100.0
 
 if csv_path:
     # st.header('Portfolio')
