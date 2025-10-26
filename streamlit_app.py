@@ -308,14 +308,27 @@ if csv_path:
 
         # Create subplots conditionally: include bucket-related charts only when bucket data exists
         if has_bucket_column and bucket_distribution and sum(bucket_distribution.values()) > 0:
-            # Full layout: top row (Assets, Categories, Buckets), bottom row (Long-Term, Speculative centered)
+            # Full layout: top row (Assets, Categories, Buckets), bottom row (per-bucket asset breakdowns)
             # reduce vertical_spacing so plots sit closer to the tables above
+            # Dynamically choose bottom-row per-bucket pies. Prefer 'Long-Term' if present,
+            # otherwise pick the top two buckets by size. This handles renames like 'Speculative' -> 'Trade'.
+            sorted_bucket_names = [k for k, _ in sorted(bucket_distribution.items(), key=lambda x: x[1], reverse=True)]
+            primary_bucket = 'Long-Term' if 'Long-Term' in sorted_bucket_names else (sorted_bucket_names[0] if sorted_bucket_names else None)
+            secondary_bucket = None
+            for name in sorted_bucket_names:
+                if name != primary_bucket:
+                    secondary_bucket = name
+                    break
+            # Build subplot titles dynamically so labels match actual bucket names
+            bottom_primary_title = primary_bucket or ''
+            bottom_secondary_title = secondary_bucket or ''
+
             fig = make_subplots(rows=2, cols=3,
                                 specs=[[{'type': 'domain'}, {'type': 'domain'}, {'type': 'domain'}],
                                        [{'type': 'domain'}, {'type': 'domain'}, {'type': 'domain'}]],
                                 row_heights=[0.60, 0.40],
                                 vertical_spacing=0.04,
-                                subplot_titles=['Assets', 'Categories', 'Buckets', '', 'Long-Term', 'Speculative'])
+                                subplot_titles=['Assets', 'Categories', 'Buckets', '', bottom_primary_title, bottom_secondary_title])
 
             # Top row
             fig.add_trace(go.Pie(labels=a_labels, values=a_values, name='Assets'), 1, 1)
@@ -324,9 +337,9 @@ if csv_path:
             fig.add_trace(go.Pie(labels=b_labels, values=b_values, name='Buckets'), 1, 3)
 
             # Bottom row: only add per-bucket pies if there is asset-level data for those buckets
-            target_buckets = ['Long-Term', 'Speculative']
+            target_buckets = [b for b in (primary_bucket, secondary_bucket) if b]
             for idx, bname in enumerate(target_buckets):
-                col = 2 + idx  # places in column 2 and 3
+                col = 2 + idx  # places in column 2 and 3 on the bottom row
                 items = bucket_asset_breakdowns.get(bname, {}) if bucket_asset_breakdowns else {}
                 blabels, bvalues = prepare_pie_data(items, combine_threshold)
                 if blabels and sum(bvalues) > 0:
